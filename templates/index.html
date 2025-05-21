@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECharts数据可视化</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <!-- 添加Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 确保容器始终保持适当的尺寸 */
+        #chart {
+            min-height: 300px; /* 设置最小高度 */
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+</head>
+<body class="m-0 p-0 font-sans h-full">
+    <div class="flex flex-col items-center w-full h-full">
+        <!-- <h1 class="text-2xl font-bold mb-4">ECharts数据可视化展示</h1> -->
+        <div class="w-full h-full relative">
+            <div id="chart" class="w-full h-full border border-gray-200">
+                <div class="flex justify-center items-center h-full text-lg text-gray-500">加载中...</div>
+            </div>
+            <button id="fullscreenButton" class="absolute top-2.5 right-10 z-10 bg-white border border-gray-300 px-2.5 py-1.5 rounded cursor-pointer text-sm shadow-md select-none outline-none hover:bg-gray-100 active:bg-white">全屏显示</button>
+        </div>
+    </div>
+
+    <script>
+
+        function loadEchartData() {
+            let echart_data =   `{{echart_data }}`;
+            // 第一步：用 textarea 反转义 HTML 实体
+            const textarea = document.createElement('textarea');
+            textarea.innerHTML = echart_data;
+            const decodedStr = textarea.value;
+            echart_data = JSON.parse(decodedStr);
+            return echart_data;
+        }
+
+        // 初始化ECharts实例
+        const chartDom = document.getElementById('chart');
+        let myChart = null;
+        
+        // 初始化图表并设置自适应选项
+        function initChart() {
+            // 如果图表已存在，先销毁
+            if (myChart != null && !myChart.isDisposed()) {
+                myChart.dispose();
+            }
+            
+            // 使用自适应主题初始化图表
+            myChart = echarts.init(chartDom, null, {
+                renderer: 'canvas',
+                useDirtyRect: true, // 提高性能
+                devicePixelRatio: window.devicePixelRatio // 适应高清屏
+            });
+            
+            // 设置图表加载动画
+            myChart.showLoading();
+        }
+        
+        // 加载数据并绘制图表
+        async function fetchDataAndDrawChart() {
+            try {
+                // 确保图表已初始化
+                initChart();
+                
+                let chartData = loadEchartData();
+                
+                // 在设置选项之前隐藏加载动画
+                myChart.hideLoading();
+                
+                // 配置图表选项并渲染
+                myChart.setOption(chartData, {
+                    notMerge: true, // 完全重新绘制图表
+                    replaceMerge: ['series'], // 替换系列数据
+                    lazyUpdate: true // 延迟更新以提高性能
+                });
+                
+                // 确保图表自适应容器大小
+                myChart.resize();
+                
+            } catch (error) {
+                console.error('处理数据失败:', error);
+                console.log('使用备选数据');
+                // myChart.setOption(fallbackData);
+            }
+        }
+        
+        // 页面加载时获取数据并绘制图表
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchDataAndDrawChart();
+        });
+        
+        // 使用ResizeObserver监听容器大小变化
+        const resizeObserver = new ResizeObserver(entries => {
+            if (myChart && !myChart.isDisposed()) {
+                myChart.resize();
+            }
+        });
+        
+        // 监听容器大小变化
+        resizeObserver.observe(chartDom);
+        
+        // 处理窗口大小变化时的图表重绘
+        window.addEventListener('resize', function() {
+            if (myChart && !myChart.isDisposed()) {
+                myChart.resize();
+            }
+        });
+        
+        // 全屏功能实现
+        const fullscreenButton = document.getElementById('fullscreenButton');
+        const chartContainer = document.querySelector('div:has(> #chart)');
+        
+        fullscreenButton.addEventListener('click', toggleFullscreen);
+        
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                // 进入全屏模式
+                if (chartContainer.requestFullscreen) {
+                    chartContainer.requestFullscreen();
+                } else if (chartContainer.mozRequestFullScreen) { // Firefox
+                    chartContainer.mozRequestFullScreen();
+                } else if (chartContainer.webkitRequestFullscreen) { // Chrome, Safari, Opera
+                    chartContainer.webkitRequestFullscreen();
+                } else if (chartContainer.msRequestFullscreen) { // IE/Edge
+                    chartContainer.msRequestFullscreen();
+                }
+                fullscreenButton.textContent = '退出全屏';
+            } else {
+                // 退出全屏模式
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+                fullscreenButton.textContent = '全屏显示';
+            }
+        }
+        
+        // 监听全屏状态变化
+        document.addEventListener('fullscreenchange', updateFullscreenButtonText);
+        document.addEventListener('webkitfullscreenchange', updateFullscreenButtonText);
+        document.addEventListener('mozfullscreenchange', updateFullscreenButtonText);
+        document.addEventListener('MSFullscreenChange', updateFullscreenButtonText);
+        
+        function updateFullscreenButtonText() {
+            if (document.fullscreenElement) {
+                fullscreenButton.textContent = '退出全屏';
+                // 添加全屏时的样式
+                chartContainer.classList.add('fixed', 'inset-0', 'p-0', 'w-screen', 'h-screen', 'bg-white');
+                chartDom.classList.add('border-0');
+                // 全屏时重新调整图表大小以适应全屏
+                setTimeout(() => {
+                    myChart.resize();
+                }, 100);
+            } else {
+                fullscreenButton.textContent = '全屏显示';
+                // 移除全屏时的样式
+                chartContainer.classList.remove('fixed', 'inset-0', 'p-0', 'w-screen', 'h-screen', 'bg-white');
+                chartDom.classList.remove('border-0');
+            }
+            // 调整图表大小以适应新的容器尺寸
+            setTimeout(() => {
+                myChart.resize();
+            }, 100);
+        }
+    </script>
+</body>
+</html>
